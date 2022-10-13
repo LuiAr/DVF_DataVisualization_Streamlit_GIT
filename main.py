@@ -1,9 +1,4 @@
 import streamlit as st
-import matplotlib.pyplot as plt
-from bokeh.plotting import figure
-import plotly.figure_factory as ff
-import numpy as np
-import pandas as pd
 
 def main_page():
     st.markdown("")
