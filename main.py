@@ -16,8 +16,8 @@ def main():
     st.markdown("")
     st.markdown("")
     st.success("Go to the DVF exploration 📚 by clicking on the sidebar on the left")
-    st.markdown("")
-    st.write('*made by Louis Arbey.*')
+    st.write("> As i designed my streamlit app the more clean possible and explained every function, i didn't feel that a notebook was really important.")
+    st.write('> *made by Louis Arbey.*')
 
     # It's freezing here
     st.snow()
