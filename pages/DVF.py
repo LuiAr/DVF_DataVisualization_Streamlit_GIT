@@ -27,7 +27,9 @@ def convert_df(df):
 #? Function to import the dataset
 def dataImport():
     # Import the Dataset
+    entry_msg = st.error("*IMPORTING THE TWO DATASET MAY TAKE SOME TIME FIRST TIME*",icon="🚨")
     data2019, data2020 = load_data()
+    entry_msg.empty()
     msg = st.success('DVF 2019 & 2020 imported')
     time.sleep(2)
     msg.empty()
