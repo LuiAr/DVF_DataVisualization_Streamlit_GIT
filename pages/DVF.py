@@ -24,9 +24,6 @@ def load_data():
     data2019 = pd.read_csv("https://files.data.gouv.fr/geo-dvf/latest/csv/2019/full.csv.gz").sample(frac=0.2)
     data2020 = pd.read_csv("https://files.data.gouv.fr/geo-dvf/latest/csv/2020/full.csv.gz").sample(frac=0.2)
 
-    data2019 = data2019.sample(frac=0.2, random_state=1)
-    data2020 = data2020.sample(frac=0.2, random_state=1)
-
     return data2019, data2020
 
 @st.experimental_memo
