@@ -13,28 +13,21 @@ def DVF():
     st.markdown("")
 
 #? Function to load the data and store it in cache
-@st.experimental_memo
+@st.experimental_memo(persist="disk")
 def load_data():
-    # data2019 = pd.read_csv("dataset/sample_2019.csv")
-    # data2020 = pd.read_csv("dataset/sample_2020.csv")
-
     data2019 = pd.read_csv("https://files.data.gouv.fr/geo-dvf/latest/csv/2019/full.csv.gz").sample(frac=0.2)
     data2020 = pd.read_csv("https://files.data.gouv.fr/geo-dvf/latest/csv/2020/full.csv.gz").sample(frac=0.2)
 
     return data2019, data2020
 
-@st.experimental_memo
+@st.experimental_memo(persist="disk")
 def convert_df(df):
     return df.to_csv().encode('utf-8')
 
 #? Function to import the dataset
 def dataImport():
-    # I created two csv files who contains only 20% of the data, using sample function
-    # I didn't want to re create the sample everytime and it will run faster that way
-
-    #? Just a loading animation, so the user know that something is happening
-    with st.spinner('Importing data'):
-        data2019, data2020 = load_data()
+    # Import the Dataset
+    data2019, data2020 = load_data()
     msg = st.success('DVF 2019 & 2020 imported')
     time.sleep(2)
     msg.empty()
@@ -73,7 +66,28 @@ def dataImport():
             )
     else:
         st.markdown("")
-    
+    return data2019, data2020
+
+@st.experimental_memo(persist="disk")
+def modifyTypes(data2019, data2020):
+    data2019["date_mutation"] = pd.to_datetime(data2019["date_mutation"])
+    data2019["Mois"] = data2019["date_mutation"].dt.month
+    data2019["Jour"] = data2019["date_mutation"].dt.day
+    data2019["Année"] = data2019["date_mutation"].dt.year
+
+    data2020["date_mutation"] = pd.to_datetime(data2020["date_mutation"])
+    data2020["Mois"] = data2020["date_mutation"].dt.month
+    data2020["Jour"] = data2020["date_mutation"].dt.day
+    data2020["Année"] = data2020["date_mutation"].dt.year
+
+    # We pars to int the column code_postal
+    data2019["code_postal"] = data2019["code_postal"].astype(int)
+    data2020["code_postal"] = data2020["code_postal"].astype(int)
+
+    # same for valeur fonciere
+    data2019["valeur_fonciere"] = data2019["valeur_fonciere"].astype(int)
+    data2020["valeur_fonciere"] = data2020["valeur_fonciere"].astype(int)
+
     return data2019, data2020
 
 # Function to clean the data, remove all missing data, remove columns we don't need etc...
@@ -127,73 +141,35 @@ def dataCleaning(data2019, data2020):
 
     # lastly we modify certain types, this will help us in data visualization
     # We add a column to have the month day and year of each transaction
-    data2019["date_mutation"] = pd.to_datetime(data2019["date_mutation"])
-    data2019["Mois"] = data2019["date_mutation"].dt.month
-    data2019["Jour"] = data2019["date_mutation"].dt.day
-    data2019["Année"] = data2019["date_mutation"].dt.year
-
-    data2020["date_mutation"] = pd.to_datetime(data2020["date_mutation"])
-    data2020["Mois"] = data2020["date_mutation"].dt.month
-    data2020["Jour"] = data2020["date_mutation"].dt.day
-    data2020["Année"] = data2020["date_mutation"].dt.year
-
-    # We pars to int the column code_postal
-    data2019["code_postal"] = data2019["code_postal"].astype(int)
-    data2020["code_postal"] = data2020["code_postal"].astype(int)
-
-    # same for valeur fonciere
-    data2019["valeur_fonciere"] = data2019["valeur_fonciere"].astype(int)
-    data2020["valeur_fonciere"] = data2020["valeur_fonciere"].astype(int)
-
+    data2019, data2020 =  modifyTypes(data2019, data2020)
 
     return data2019, data2020
 
-
-# Last part where we create all the visuals
-def dataVisualization(data2019 , data2020):
-    st.write("---")
-    st.markdown("## Data Visualization 🔬")
-    st.markdown("")
-
-    # Add a selector to choose wich year user want to see
-    year = st.selectbox("Select a year", ["2019", "2020"])
-    if (year == "2019"):
-        df = data2019
-    else:
-        df = data2020
-    st.write("")
-
-    # Simple line chart to represent the nbr of transaction by month
-    st.write("### Number of transaction by month")
+# Function for graphs
+@st.experimental_memo(persist="disk")
+def transactionByMonth(df):
     st.line_chart(df.groupby("Mois").count()["id_mutation"])
 
-    # We let the user to select his postal code and will see the average valeur fonciere
-    st.write("### Mean *Valeur Fonciere* by postal code")
-    code = st.text_input("Entrez votre code postal", "18000")
+@st.experimental_memo(persist="disk")
+def valFonciereByPostalCode(df, code):
     df_user = df[df["code_postal"] == int(code)]
     st.bar_chart(df_user.groupby("Mois").mean()["valeur_fonciere"])
-    st.warning("the data is not very accurate, because we only have 20% of the data")
 
-    # Simple scatter with plotly to represent the surface by type of local
-    st.write("### *Surface terrain* by the type of *local*")
+@st.experimental_memo(persist="disk")
+def surfaceByLocal(df):
     fig = px.scatter(df, x="surface_terrain", y="type_local")
     st.plotly_chart(fig)
 
-    st.write("### *Valeur fonciere* by the type of *local*")
-    # We ask the user for infos to precise his search
-    type_local = st.selectbox("Select a type of local", ["Appartement","Dépendance", "Local industriel. commercial ou assimilé", "Maison"])
-    min_price, max_price = st.select_slider("Select a range of price", options=[0, 100000, 1000000, 5000000, 10000000],value=(0, 10000000))
-    
-    # Represent on a map the number of transaction following a city, type_local and price
+@st.experimental_memo(persist="disk")
+def valFonciereByLocal(df, type_local, min_price, max_price):
     df_user = df[(df["type_local"] == type_local) & (df["valeur_fonciere"] > min_price) & (df["valeur_fonciere"] < max_price)]
     fig = px.scatter_mapbox(df_user, lat="latitude", lon="longitude", color="valeur_fonciere", zoom=10, height=300)
     fig.update_layout(mapbox_style="open-street-map")
     fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
     st.plotly_chart(fig)
-    st.success("*Do not forget to zoom out 👀*")
 
-    # We create a cheese to represent the repartition of types of local
-    st.write("### Répartition of the type of local in France")
+@st.experimental_memo(persist="disk")
+def mapLocal(df):
     df_local = df['type_local']
     r = Counter(df_local)
     df_local = pd.DataFrame.from_dict(r, orient='index').sort_values(by=0)
@@ -204,29 +180,70 @@ def dataVisualization(data2019 , data2020):
                 autopct='%.2f',
                 legend=False,)
     fig = plt.gcf()
-    st.pyplot(fig)
+    return fig
 
-    # We will let the user to see the average valeur fonciere for each type of local by postal_code
-    st.write("### Average *Valeur Fonciere* by postal code")
-
-    # We ask the user for infos to precise his search
-    code_user = st.text_input("Code postal", "22100")
-
+@st.experimental_memo(persist="disk")
+def averageValeurByPostalCode(df, code_user):
     # We keep only the postal code chosen
     df2 = df[df["code_postal"] == int(code_user)]
-
     # create a dataframe that contains the average valeur fonciere for each type_local
     df2 = df2.groupby(["type_local"])["valeur_fonciere"].mean()
-
     # create a dataframe with the type_local and the average valeur fonciere
     df2 = pd.DataFrame({
         "type_local": df2.keys(),
         "valeur_fonciere": [i for i in df2]
     })
-
     # create a bar chart with plotly
     fig = px.bar(df2, x="type_local", y="valeur_fonciere")
     st.plotly_chart(fig)
+
+# Last part where we create all the visuals
+def dataVisualization(data2019 , data2020):
+    st.write("---")
+    st.markdown("## Data Visualization 🔬")
+    st.markdown("")
+
+    # Add a selector to choose wich year user want to see
+    year = st.selectbox("Select a year", ["2020", "2019"])
+    if (year == "2020"):
+        df = data2020
+    else:
+        df = data2019
+    st.write("")
+
+    # Simple line chart to represent the nbr of transaction by month
+    st.write("### Number of transaction by month")
+    transactionByMonth(df)
+    
+    # We let the user to select his postal code and will see the average valeur fonciere
+    st.write("### Mean *Valeur Fonciere* by postal code")
+    code = st.text_input("Entrez votre code postal", "18000")
+    valFonciereByPostalCode(df, code)
+    st.warning("the data is not very accurate, because we only have 20% of the data")
+
+    # Simple scatter with plotly to represent the surface by type of local
+    st.write("### *Surface terrain* by the type of *local*")
+    surfaceByLocal(df)
+
+    st.write("### *Valeur fonciere* by the type of *local*")
+    # We ask the user for infos to precise his search
+    type_local = st.selectbox("Select a type of local", ["Appartement","Dépendance", "Local industriel. commercial ou assimilé", "Maison"])
+    min_price, max_price = st.select_slider("Select a range of price", options=[0, 100000, 1000000, 5000000, 10000000],value=(0, 10000000))
+    
+    # Represent on a map the number of transaction following a city, type_local and price
+    valFonciereByLocal(df, type_local, min_price, max_price)
+    st.success("*Do not forget to zoom out 👀*")
+
+    # We create a cheese to represent the repartition of types of local
+    st.write("### Répartition of the type of local in France")
+    fig = mapLocal(df)
+    st.pyplot(fig)
+
+    # We will let the user to see the average valeur fonciere for each type of local by postal_code
+    st.write("### Average *Valeur Fonciere* by postal code")
+    # We ask the user for infos to precise his search
+    code_user = st.text_input("Code postal", "22100")
+    averageValeurByPostalCode(df, code_user)
 
     if (st.button("Thank you !")):
         st.balloons()
